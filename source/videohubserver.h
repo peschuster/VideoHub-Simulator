@@ -14,10 +14,6 @@ public:
     enum ProcessStatus {
         PS_Error = -1,
         PS_Ok = 0,
-        PS_InputChanged,
-        PS_OutputChanged,
-        PS_RoutingChanged,
-        PS_LockChanged,
         PS_InputDump,
         PS_OutputDump,
         PS_RoutingDump,
@@ -48,6 +44,7 @@ public:
     void start();
 protected:
     ProcessStatus processMessage(QList<QByteArray> &message);
+    void processRequestResult(QTcpSocket* client, ProcessStatus status);
     void sendProtocolPreamble(QTcpSocket* client);
     void sendDeviceInformation(QTcpSocket* client);
     void sendInputLabels(QTcpSocket* client, bool pending);

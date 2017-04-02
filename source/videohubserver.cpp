@@ -3,6 +3,8 @@
 #define OUTPUT_COUNT  40
 #define INPUT_COUNT   40
 
+#define PORT   9990
+
 VideoHubServer::VideoHubServer(QObject *parent) : QObject(parent), m_inputLabels(INPUT_COUNT), m_outputLabels(OUTPUT_COUNT), m_routing(OUTPUT_COUNT), m_outputLocks(OUTPUT_COUNT)
 {
     connect(&m_server, SIGNAL(newConnection()), this, SLOT(onNewConnection()));
@@ -25,9 +27,9 @@ VideoHubServer::VideoHubServer(QObject *parent) : QObject(parent), m_inputLabels
 
 void VideoHubServer::start()
 {
-    m_server.listen(QHostAddress::Any, 9990);
+    m_server.listen(QHostAddress::Any, PORT);
 
-    m_zeroConf.startServicePublish("_videohub", "_blackmagic._tcp", "local", 9990);
+    m_zeroConf.startServicePublish("_videohub", "_blackmagic._tcp", "local", PORT);
 }
 
 void VideoHubServer::onNewConnection()
@@ -41,6 +43,9 @@ void VideoHubServer::onNewConnection()
 
     m_clients.append(client);
 
+    qDebug("Added client at %s", client->peerAddress().toString().toLatin1().data());
+    qDebug("New client count: %i", m_clients.length());
+
     sendProtocolPreamble(client);
     sendDeviceInformation(client);
     sendInputLabels(client, false);
@@ -51,12 +56,14 @@ void VideoHubServer::onNewConnection()
 
 void VideoHubServer::onClientConnectionClosed()
 {
-    QTcpSocket* obj = (QTcpSocket*)sender();
-    Q_ASSERT(obj != NULL);
+    QTcpSocket* client = (QTcpSocket*)sender();
+    Q_ASSERT(client != NULL);
 
-    int index = m_clients.indexOf(obj);
+    int index = m_clients.indexOf(client);
     if (index > -1) {
         m_clients.removeAt(index);
+        qDebug("Removed client at %s", client->peerAddress().toString().toLatin1().data());
+        qDebug("New client count: %i", m_clients.length());
     }
 }
 
@@ -73,18 +80,29 @@ void VideoHubServer::onClientData()
     Q_FOREACH(QByteArray line, lines)
     {
         if ((line.length() == 1 && line.at(0) == '\r') || line.length() == 0) {
-            processMessage(message);
-            message.clear();
+            if (!message.empty()) {
+                ProcessStatus result = processMessage(message);
+                processRequestResult(client, result);
+                message.clear();
+            }
         } else {
             message.append(line);
         }
     }
 
-    ProcessStatus result = processMessage(message);
+    if (!message.empty()) {
+        ProcessStatus result = processMessage(message);
+        processRequestResult(client, result);
+    }
+}
 
+void VideoHubServer::processRequestResult(QTcpSocket* client, VideoHubServer::ProcessStatus result)
+{
     if (result == PS_Error) {
+        qDebug("Sending NAK...");
         client->write("NAK\n\n");
     } else {
+        qDebug("Sending ACK...");
         client->write("ACK\n\n");
 
         switch (result)
@@ -108,24 +126,17 @@ void VideoHubServer::onClientData()
 
         Q_FOREACH(QTcpSocket* c, m_clients)
         {
-            switch (result)
-            {
-                case PS_InputChanged:
-                    sendInputLabels(c, true);
-                    break;
-                case PS_OutputChanged:
-                    sendOutputLabels(c, true);
-                    break;
-                case PS_RoutingChanged:
-                    sendRouting(c, true);
-                    break;
-                case PS_LockChanged:
-                    sendOutputLocks(c, true);
-                    break;
-                default:
-                    // NOP
-                    break;
-            }
+            if (!m_pendingInputLabel.empty())
+                sendInputLabels(c, true);
+
+            if (!m_pendingOutputLabel.empty())
+                sendOutputLabels(c, true);
+
+            if (!m_pendingRouting.empty())
+                sendRouting(c, true);
+
+            if (!m_pendingOutputLocks.empty())
+                sendOutputLocks(c, true);
         }
 
         m_pendingInputLabel.clear();
@@ -134,7 +145,6 @@ void VideoHubServer::onClientData()
         m_pendingOutputLocks.clear();
     }
 }
-
 
 VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &message)
 {
@@ -229,6 +239,7 @@ void VideoHubServer::sendProtocolPreamble(QTcpSocket* client) {
 
     QString message = QString("PROTOCOL PREAMBLE:\nVersion: %1\n\n").arg(m_version);
     client->write(message.toLatin1());
+    qDebug("SEND: %s", message.toLatin1().data());
 }
 
 void VideoHubServer::sendDeviceInformation(QTcpSocket* client) {
@@ -345,4 +356,5 @@ void VideoHubServer::send(QTcpSocket* client, QString &header, QList<QString> &d
     raw.append("\n");
 
     client->write(raw);
+    qDebug("SEND: %s", raw.data());
 }
