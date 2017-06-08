@@ -26,6 +26,9 @@ private:
 
     QList<QTcpSocket*> m_clients;
 
+    QString m_modelName;
+    QString m_friendlyName;
+    QString m_uniqueId;
     QString m_version;
     int m_inputCount;
     int m_outputCount;
@@ -42,7 +45,10 @@ private:
 public:
     explicit VideoHubServer(QObject *parent = 0);
     void start();
+    void stop();
+    void republish();
 protected:
+    void publish();
     ProcessStatus processMessage(QList<QByteArray> &message);
     void processRequestResult(QTcpSocket* client, ProcessStatus status);
     void sendProtocolPreamble(QTcpSocket* client);
@@ -52,6 +58,7 @@ protected:
     void sendRouting(QTcpSocket* client, bool pending);
     void sendOutputLocks(QTcpSocket* client, bool pending);
     void send(QTcpSocket* client, QString &header, QList<QString> &data);
+    QString getMacAddress();
 signals:
 
 protected slots:

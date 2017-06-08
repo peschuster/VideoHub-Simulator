@@ -1,4 +1,5 @@
 #include "videohubserver.h"
+#include <QNetworkInterface>
 
 #define OUTPUT_COUNT  40
 #define INPUT_COUNT   40
@@ -12,7 +13,9 @@ VideoHubServer::VideoHubServer(QObject *parent) : QObject(parent), m_inputLabels
     m_inputCount = INPUT_COUNT;
     m_outputCount = OUTPUT_COUNT;
 
-    m_version = "2.3";
+    m_version = "2.5";
+    m_modelName = "Blackmagic Compact Videohub";
+    m_friendlyName = "XP 40x40";
 
     for (int i = 0; i < m_outputCount; i++) {
         m_outputLabels.replace(i, QString("Output %1").arg(i + 1).toLatin1());
@@ -25,11 +28,64 @@ VideoHubServer::VideoHubServer(QObject *parent) : QObject(parent), m_inputLabels
     }
 }
 
+QString VideoHubServer::getMacAddress()
+{
+    foreach(QNetworkInterface netInterface, QNetworkInterface::allInterfaces())
+    {
+        // Return only the first non-loopback MAC Address
+        if (!(netInterface.flags() & QNetworkInterface::IsLoopBack))
+            return netInterface.hardwareAddress();
+    }
+    return QString();
+}
+
 void VideoHubServer::start()
 {
     m_server.listen(QHostAddress::Any, PORT);
 
-    m_zeroConf.startServicePublish("_videohub", "_blackmagic._tcp", "local", PORT);
+    QString mac = getMacAddress();
+    if (mac.length() == 0) {
+        m_uniqueId = "a1b2c3d4e5f6";
+    } else {
+        QByteArray filtered;
+        for (int i = 0; i < mac.length(); i++) {
+            if (mac.at(i) != ':') {
+                filtered.append(mac.at(i));
+            }
+        }
+        m_uniqueId = QString(filtered.toLower());
+    }
+
+    publish();
+}
+
+void VideoHubServer::publish() {
+
+    ////QString name = QString("Videohub-") + m_uniqueId;
+    m_zeroConf.addServiceTxtRecord("txtvers", "1");
+    m_zeroConf.addServiceTxtRecord("name", m_modelName);
+    m_zeroConf.addServiceTxtRecord("class", "Videohub");
+    m_zeroConf.addServiceTxtRecord("protocol version", m_version);
+    m_zeroConf.addServiceTxtRecord("internal version", "FW:20-EM:6cab520c");
+    m_zeroConf.addServiceTxtRecord("unqie id", m_uniqueId);
+
+    m_zeroConf.startServicePublish(m_friendlyName.toLatin1().data(), "_blackmagic._tcp", "local", PORT);
+}
+
+
+void VideoHubServer::stop() {
+    m_zeroConf.stopServicePublish();
+
+    Q_FOREACH(QTcpSocket* c, m_clients) {
+        c->close();
+    }
+
+    m_server.close();
+}
+
+void VideoHubServer::republish() {
+    m_zeroConf.stopServicePublish();
+    publish();
 }
 
 void VideoHubServer::onNewConnection()
@@ -156,6 +212,22 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
 
     if (header.startsWith("PING:")) {
         return VideoHubServer::PS_Ok;
+    } else if (header.startsWith("VIDEOHUB DEVICE:")) {
+
+        if (message.length() > 0) {
+            Q_FOREACH(QByteArray line, message) {
+                int index = line.indexOf(':');
+                if (index > 0 && index < (line.length() - 2)) {
+                    QByteArray label = line.left(index + 1).trimmed();
+                    QByteArray value = line.right(line.length() - index - 1).trimmed();
+
+                    if (label == "Friendly name:") {
+                        m_friendlyName = value;
+                        republish();
+                    }
+                }
+            }
+        }
     } else if (header.startsWith("INPUT LABELS:")) {
 
         if (message.length() == 0)
@@ -247,7 +319,9 @@ void VideoHubServer::sendDeviceInformation(QTcpSocket* client) {
 
     QList<QString> lines;
     lines.append(QString("Device present: true"));
-    lines.append(QString("Model name: Blackmagic Videohub %1x%2").arg(m_inputCount).arg(m_outputCount));
+    lines.append(QString("Model name: %1").arg(m_modelName));
+    lines.append(QString("Friendly name: %1").arg(m_friendlyName));
+    lines.append(QString("Unique ID: %1").arg(m_uniqueId));
     lines.append(QString("Video inputs: %1").arg(m_inputCount));
     lines.append(QString("Video processing units: 0"));
     lines.append(QString("Video outputs: %1").arg(m_outputCount));
