@@ -61,7 +61,8 @@ void VideoHubServer::start()
 
 void VideoHubServer::publish() {
 
-    ////QString name = QString("Videohub-") + m_uniqueId;
+    m_zeroConf.clearServiceTxtRecords();
+
     m_zeroConf.addServiceTxtRecord("txtvers", "1");
     m_zeroConf.addServiceTxtRecord("name", m_modelName);
     m_zeroConf.addServiceTxtRecord("class", "Videohub");
@@ -71,7 +72,6 @@ void VideoHubServer::publish() {
 
     m_zeroConf.startServicePublish(m_friendlyName.toLatin1().data(), "_blackmagic._tcp", "local", PORT);
 }
-
 
 void VideoHubServer::stop() {
     m_zeroConf.stopServicePublish();
@@ -129,7 +129,8 @@ void VideoHubServer::onClientData()
     Q_ASSERT(client != NULL);
 
     QByteArray input = client->readAll();
-    qDebug("VideoHub received: %s", input.data());
+    qDebug("Command received \"%s\"", input.trimmed().data());
+    qDebug("Message received from %s", client->peerAddress().toString().toLatin1().data());
 
     QList<QByteArray> message;
     QList<QByteArray> lines = input.split('\n');
