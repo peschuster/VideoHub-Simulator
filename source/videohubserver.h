@@ -20,6 +20,11 @@ public:
         PS_LockDump,
     };
 
+    enum InOutType {
+        Input = 1,
+        Output = 2
+    };
+
 private:
     QTcpServer m_server;
     QZeroConf m_zeroConf;
@@ -60,6 +65,10 @@ protected:
     void send(QTcpSocket* client, QString &header, QList<QString> &data);
     QString getMacAddress();
 signals:
+    void nameChanged(QString &newName, QString &oldName);
+    void routingChanged(int output, int newInput, int oldInput);
+    void labelChanged(InOutType type, int number, QString &newLabel, QString &oldLabel);
+    void lockChanged(int output, bool newState);
 
 protected slots:
     void onNewConnection();

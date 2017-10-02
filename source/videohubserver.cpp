@@ -223,7 +223,11 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
                     QByteArray value = line.right(line.length() - index - 1).trimmed();
 
                     if (label == "Friendly name:") {
+                        QString oldName = m_friendlyName;
+
                         m_friendlyName = value;
+                        this->nameChanged(m_friendlyName, oldName);
+
                         republish();
                     }
                 }
@@ -240,7 +244,11 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
             int input = line.left(index).toInt();
 
             if (label != m_inputLabels.value(input)) {
+                QString oldLabel = m_inputLabels.value(input);
+
                 m_inputLabels.replace(input, label);
+                this->labelChanged(Input, input, QString(label), oldLabel);
+
                 m_pendingInputLabel.append(input);
             }
         }
@@ -258,7 +266,11 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
             int output = line.left(index).toInt();
 
             if (label != m_outputLabels.value(output)) {
+                QString oldLabel = m_outputLabels.value(output);
+
                 m_outputLabels.replace(output, label);
+                this->labelChanged(Output, output, QString(label), oldLabel);
+
                 m_pendingOutputLabel.append(output);
             }
         }
@@ -275,9 +287,12 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
             int output = line.left(index).trimmed().toInt();
             int input  = line.right(line.length() - index - 1).trimmed().toInt();
 
-            if (input != m_routing.value(output))
+            int oldInput = m_routing.value(output);
+            if (input != oldInput)
             {
                 m_routing.replace(output, input);
+                this->routingChanged(output, input, oldInput);
+
                 m_pendingRouting.append(output);
             }
         }
@@ -296,7 +311,10 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
 
             bool currentLock = m_outputLocks.value(output);
             if ((currentLock && lock == "U") || (!currentLock && (lock == "O" || lock == "L" || lock == "F"))) {
-                m_outputLocks.replace(output, !(lock == "U"));
+                bool lockValue = !(lock == "U");
+                m_outputLocks.replace(output, lockValue);
+                this->lockChanged(output, lockValue);
+
                 m_pendingOutputLocks.append(output);
             }
         }
