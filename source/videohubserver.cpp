@@ -90,6 +90,133 @@ void VideoHubServer::republish() {
     publish();
 }
 
+int VideoHubServer::getInputCount()
+{
+    return m_inputCount;
+}
+
+int VideoHubServer::getOutputCount()
+{
+    return m_outputCount;
+}
+
+QString VideoHubServer::getFriendlyName()
+{
+    return m_friendlyName;
+}
+
+QString VideoHubServer::getLabel(InOutType inOutType, int number)
+{
+    Q_ASSERT(number >= 0);
+    Q_ASSERT(inOutType == Input || number < m_outputCount);
+    Q_ASSERT(inOutType == Output || number < m_inputCount);
+
+    return inOutType == Input
+            ? m_inputLabels.value(number)
+            : m_outputLabels.value(number);
+}
+
+int VideoHubServer::getRouting(int output)
+{
+    Q_ASSERT(output >= 0 && output < m_outputCount);
+
+    return m_routing.value(output);
+}
+
+bool VideoHubServer::getLock(int output)
+{
+    Q_ASSERT(output >= 0 && output < m_outputCount);
+
+    return m_outputLocks.value(output);
+}
+
+void VideoHubServer::setFriendlyName(QString friendlyName)
+{
+    if (m_friendlyName.compare(friendlyName) != 0) {
+        QString oldName = m_friendlyName;
+        m_friendlyName = friendlyName;
+        this->nameChanged(m_friendlyName, oldName);
+
+        republish();
+    }
+}
+
+void VideoHubServer::setLabel(InOutType inOutType, int number, QByteArray &label)
+{
+    Q_ASSERT(number >= 0);
+    Q_ASSERT(inOutType == Input || number < m_outputCount);
+    Q_ASSERT(inOutType == Output || number < m_inputCount);
+
+    if (inOutType == Input) {
+        QString oldLabel = m_inputLabels.value(number);
+        if (label != oldLabel) {
+            m_inputLabels.replace(number, label);
+            this->labelChanged(Input, number, QString(label), oldLabel);
+
+            m_pendingInputLabel.append(number);
+        }
+    } else if (inOutType == Output) {
+        QString oldLabel = m_outputLabels.value(number);
+        if (label != oldLabel) {
+            m_outputLabels.replace(number, label);
+            this->labelChanged(Output, number, QString(label), oldLabel);
+
+            m_pendingOutputLabel.append(number);
+        }
+    }
+}
+
+void VideoHubServer::setRouting(int output, int input)
+{
+    Q_ASSERT(input >= 0 && input < m_inputCount);
+    Q_ASSERT(output >= 0 && output < m_outputCount);
+
+    int oldInput = m_routing.value(output);
+    if (input != oldInput)
+    {
+        m_routing.replace(output, input);
+        this->routingChanged(output, input, oldInput);
+
+        m_pendingRouting.append(output);
+    }
+}
+
+void VideoHubServer::setLock(int output, bool value)
+{
+    Q_ASSERT(output >= 0 && output < m_outputCount);
+
+    bool currentLock = m_outputLocks.value(output);
+    if ((currentLock && !value) || (!currentLock && value)) {
+        m_outputLocks.replace(output, value);
+        this->lockChanged(output, value);
+
+        m_pendingOutputLocks.append(output);
+    }
+}
+
+void VideoHubServer::publishChanges()
+{
+    Q_FOREACH(QTcpSocket* c, m_clients)
+    {
+        if (!m_pendingInputLabel.empty())
+            sendInputLabels(c, true);
+
+        if (!m_pendingOutputLabel.empty())
+            sendOutputLabels(c, true);
+
+        if (!m_pendingRouting.empty())
+            sendRouting(c, true);
+
+        if (!m_pendingOutputLocks.empty())
+            sendOutputLocks(c, true);
+    }
+
+    m_pendingInputLabel.clear();
+    m_pendingOutputLabel.clear();
+    m_pendingRouting.clear();
+    m_pendingOutputLocks.clear();
+}
+
 void VideoHubServer::onNewConnection()
 {
     QTcpSocket* client = m_server.nextPendingConnection();
@@ -183,25 +310,7 @@ void VideoHubServer::processRequestResult(QTcpSocket* client, VideoHubServer::Pr
                 break;
         }
 
-        Q_FOREACH(QTcpSocket* c, m_clients)
-        {
-            if (!m_pendingInputLabel.empty())
-                sendInputLabels(c, true);
-
-            if (!m_pendingOutputLabel.empty())
-                sendOutputLabels(c, true);
-
-            if (!m_pendingRouting.empty())
-                sendRouting(c, true);
-
-            if (!m_pendingOutputLocks.empty())
-                sendOutputLocks(c, true);
-        }
-
-        m_pendingInputLabel.clear();
-        m_pendingOutputLabel.clear();
-        m_pendingRouting.clear();
-        m_pendingOutputLocks.clear();
+        publishChanges();
     }
 }
 
@@ -225,12 +334,7 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
                     QByteArray value = line.right(line.length() - index - 1).trimmed();
 
                     if (label == "Friendly name:") {
-                        QString oldName = m_friendlyName;
-
-                        m_friendlyName = value;
-                        this->nameChanged(m_friendlyName, oldName);
-
-                        republish();
+                        setFriendlyName(value);
                     }
                 }
             }
@@ -245,13 +349,10 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
             QByteArray label = line.right(line.length() - index - 1).trimmed();
             int input = line.left(index).toInt();
 
-            if (label != m_inputLabels.value(input)) {
-                QString oldLabel = m_inputLabels.value(input);
-
-                m_inputLabels.replace(input, label);
-                this->labelChanged(Input, input, QString(label), oldLabel);
-
-                m_pendingInputLabel.append(input);
+            if (isValidInput(input)) {
+                setLabel(Input, input, label);
+            } else {
+                return PS_Error;
             }
         }
 
@@ -267,13 +368,10 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
             QByteArray label = line.right(line.length() - index - 1).trimmed();
             int output = line.left(index).toInt();
 
-            if (label != m_outputLabels.value(output)) {
-                QString oldLabel = m_outputLabels.value(output);
-
-                m_outputLabels.replace(output, label);
-                this->labelChanged(Output, output, QString(label), oldLabel);
-
-                m_pendingOutputLabel.append(output);
+            if (isValidOutput(output)) {
+                setLabel(Output, output, label);
+            } else {
+                return PS_Error;
             }
         }
 
@@ -289,13 +387,10 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
             int output = line.left(index).trimmed().toInt();
             int input  = line.right(line.length() - index - 1).trimmed().toInt();
 
-            int oldInput = m_routing.value(output);
-            if (input != oldInput)
-            {
-                m_routing.replace(output, input);
-                this->routingChanged(output, input, oldInput);
-
-                m_pendingRouting.append(output);
+            if (isValidOutput(output) && isValidInput(input)) {
+                setRouting(output, input);
+            } else {
+                return PS_Error;
             }
         }
 
@@ -309,15 +404,13 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
         Q_FOREACH(QByteArray line, message) {
             int index = line.indexOf(' ');
             int output = line.left(index).trimmed().toInt();
-            QByteArray lock  = line.right(line.length() - index - 1).trimmed();
+            QByteArray lockString  = line.right(line.length() - index - 1).trimmed();
+            bool lock = !(lockString == "U");
 
-            bool currentLock = m_outputLocks.value(output);
-            if ((currentLock && lock == "U") || (!currentLock && (lock == "O" || lock == "L" || lock == "F"))) {
-                bool lockValue = !(lock == "U");
-                m_outputLocks.replace(output, lockValue);
-                this->lockChanged(output, lockValue);
-
-                m_pendingOutputLocks.append(output);
+            if (isValidOutput(output)) {
+                setLock(output, lock);
+            } else {
+                return PS_Error;
             }
         }
 
@@ -479,3 +572,6 @@ QString VideoHubServer::getName(VideoHubDeviceType deviceType) {
 
     return QString("");
 }
+
+inline bool VideoHubServer::isValidInput(int number) { return number >= 0 && number < m_inputCount; }
+inline bool VideoHubServer::isValidOutput(int number) { return number >= 0 && number < m_outputCount; }

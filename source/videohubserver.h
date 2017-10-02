@@ -74,6 +74,24 @@ public:
     void start();
     void stop();
     void republish();
+
+    int getInputCount();
+    int getOutputCount();
+
+    QString getFriendlyName();
+    QString getLabel(InOutType inOutType, int number);
+    int getRouting(int output);
+    bool getLock(int output);
+
+    void setFriendlyName(QString friendlyName);
+    void setLabel(InOutType inOutType, int number, QByteArray &label);
+    void setRouting(int output, int input);
+    void setLock(int output, bool value);
+
+    void publishChanges();
+
+    inline bool isValidInput(int number);
+    inline bool isValidOutput(int number);
 protected:
     void publish();
     ProcessStatus processMessage(QList<QByteArray> &message);
