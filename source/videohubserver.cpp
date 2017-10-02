@@ -1,18 +1,15 @@
 #include "videohubserver.h"
 #include <QNetworkInterface>
 
-#define OUTPUT_COUNT  40
-#define INPUT_COUNT   40
-
-#define PORT   9990
-
-VideoHubServer::VideoHubServer(VideoHubServer::VideoHubDeviceType deviceType, QObject *parent)
-    : QObject(parent), m_inputLabels(INPUT_COUNT), m_outputLabels(OUTPUT_COUNT), m_routing(OUTPUT_COUNT), m_outputLocks(OUTPUT_COUNT)
+VideoHubServer::VideoHubServer(VideoHubServer::VideoHubDeviceType deviceType, const unsigned int outputCount, const unsigned int inputCount, const unsigned short port, QObject *parent)
+    : QObject(parent), m_inputLabels(inputCount), m_outputLabels(outputCount), m_routing(outputCount), m_outputLocks(outputCount)
 {
     connect(&m_server, SIGNAL(newConnection()), this, SLOT(onNewConnection()));
 
-    m_inputCount = INPUT_COUNT;
-    m_outputCount = OUTPUT_COUNT;
+    m_inputCount = inputCount;
+    m_outputCount = outputCount;
+
+    m_port = port;
 
     m_deviceType = deviceType;
     m_version = "2.5";
@@ -43,7 +40,7 @@ QString VideoHubServer::getMacAddress()
 
 void VideoHubServer::start()
 {
-    m_server.listen(QHostAddress::Any, PORT);
+    m_server.listen(QHostAddress::Any, m_port);
 
     QString mac = getMacAddress();
     if (mac.length() == 0) {
@@ -72,7 +69,7 @@ void VideoHubServer::publish() {
     m_zeroConf.addServiceTxtRecord("internal version", "FW:20-EM:6cab520c");
     m_zeroConf.addServiceTxtRecord("unqie id", m_uniqueId);
 
-    m_zeroConf.startServicePublish(m_friendlyName.toLatin1().data(), "_blackmagic._tcp", "local", PORT);
+    m_zeroConf.startServicePublish(m_friendlyName.toLatin1().data(), "_blackmagic._tcp", "local", m_port);
 }
 
 void VideoHubServer::stop() {

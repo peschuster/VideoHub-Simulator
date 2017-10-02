@@ -7,6 +7,8 @@
 #include <QtNetwork/QTcpServer>
 #include "qzeroconf.h"
 
+#define VIDEOHUB_PORT   9990
+
 class VideoHubServer : public QObject
 {
     Q_OBJECT
@@ -50,6 +52,8 @@ private:
     QTcpServer m_server;
     QZeroConf m_zeroConf;
 
+    unsigned short m_port;
+
     QList<QTcpSocket*> m_clients;
 
     VideoHubDeviceType m_deviceType;
@@ -70,7 +74,13 @@ private:
     QList<int> m_pendingRouting;
     QList<int> m_pendingOutputLocks;
 public:
-    explicit VideoHubServer(VideoHubDeviceType deviceType, QObject *parent = 0);
+    explicit VideoHubServer(
+            VideoHubDeviceType deviceType,
+            const unsigned int outputCount,
+            const unsigned int inputCount,
+            const unsigned short port = VIDEOHUB_PORT,
+            QObject *parent = 0);
+
     void start();
     void stop();
     void republish();
