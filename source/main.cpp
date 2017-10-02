@@ -8,6 +8,8 @@ int main(int argc, char *argv[])
     VideoHubServer s;
 
     qDebug("Starting Videohub Server...");
+
+    qDebug("Ctrl+C to exit application");
     s.start();
 
     return a.exec();
