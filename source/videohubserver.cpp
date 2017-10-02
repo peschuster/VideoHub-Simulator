@@ -6,15 +6,17 @@
 
 #define PORT   9990
 
-VideoHubServer::VideoHubServer(QObject *parent) : QObject(parent), m_inputLabels(INPUT_COUNT), m_outputLabels(OUTPUT_COUNT), m_routing(OUTPUT_COUNT), m_outputLocks(OUTPUT_COUNT)
+VideoHubServer::VideoHubServer(VideoHubServer::VideoHubDeviceType deviceType, QObject *parent)
+    : QObject(parent), m_inputLabels(INPUT_COUNT), m_outputLabels(OUTPUT_COUNT), m_routing(OUTPUT_COUNT), m_outputLocks(OUTPUT_COUNT)
 {
     connect(&m_server, SIGNAL(newConnection()), this, SLOT(onNewConnection()));
 
     m_inputCount = INPUT_COUNT;
     m_outputCount = OUTPUT_COUNT;
 
+    m_deviceType = deviceType;
     m_version = "2.5";
-    m_modelName = "Blackmagic Compact Videohub";
+    m_modelName = this->getName(deviceType);
     m_friendlyName = "XP 40x40";
 
     for (int i = 0; i < m_outputCount; i++) {
@@ -450,4 +452,30 @@ void VideoHubServer::send(QTcpSocket* client, QString &header, QList<QString> &d
 
     client->write(raw);
     qDebug("SEND: %s", raw.data());
+}
+
+QString VideoHubServer::getName(VideoHubDeviceType deviceType) {
+
+    switch (deviceType) {
+        case DeviceType_Videohub_Server:        return QString("Blackmagic Videohub Server");
+        case DeviceType_Local_USB_Videohub:     return QString("Local USB Videohub");
+        case DeviceType_Videohub:               return QString("Blackmagic Videohub");
+        case DeviceType_Workgroup_Videohub:     return QString("Blackmagic Workgroup Videohub");
+        case DeviceType_Broadcast_Videohub:     return QString("Blackmagic Broadcast Videohub");
+        case DeviceType_Studio_Videohub:        return QString("Blackmagic Studio Videohub");
+        case DeviceType_Enterprise_Videohub:    return QString("Blackmagic Enterprise Videohub");
+        case DeviceType_Micro_Videohub:         return QString("Blackmagic Micro Videohub");
+        case DeviceType_Smart_Videohub:         return QString("Blackmagic Smart Videohub");
+        case DeviceType_Compact_Videohub:       return QString("Blackmagic Compact Videohub");
+        case DeviceType_Universal_Videohub:     return QString("Blackmagic Universal Videohub");
+        case DeviceType_Universal_Videohub_72:  return QString("Blackmagic Universal Videohub 72");
+        case DeviceType_Universal_Videohub_288: return QString("Blackmagic Universal Videohub 288");
+        case DeviceType_Smart_Videohub_12_x_12: return QString("Blackmagic Smart Videohub 12 x 12");
+        case DeviceType_Smart_Videohub_20_x_20: return QString("Blackmagic Smart Videohub 20 x 20");
+        case DeviceType_Smart_Videohub_40_x_40: return QString("Blackmagic Smart Videohub 40 x 40");
+        case DeviceType_MultiView_16:           return QString("Blackmagic MultiView 16");
+        case DeviceType_MultiView_4:            return QString("Blackmagic MultiView 4");
+    }
+
+    return QString("");
 }

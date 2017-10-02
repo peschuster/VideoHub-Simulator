@@ -5,7 +5,7 @@ int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
 
-    VideoHubServer s;
+    VideoHubServer s(VideoHubServer::DeviceType_Compact_Videohub);
 
     qDebug("Starting Videohub Server...");
 
