@@ -148,7 +148,8 @@ void VideoHubServer::setLabel(InOutType inOutType, int number, QByteArray &label
         QString oldLabel = m_inputLabels.value(number);
         if (label != oldLabel) {
             m_inputLabels.replace(number, label);
-            this->labelChanged(Input, number, QString(label), oldLabel);
+            QString newLabel = QString(label);
+            this->labelChanged(Input, number, newLabel, oldLabel);
 
             m_pendingInputLabel.append(number);
         }
@@ -156,7 +157,8 @@ void VideoHubServer::setLabel(InOutType inOutType, int number, QByteArray &label
         QString oldLabel = m_outputLabels.value(number);
         if (label != oldLabel) {
             m_outputLabels.replace(number, label);
-            this->labelChanged(Output, number, QString(label), oldLabel);
+            QString newLabel = QString(label);
+            this->labelChanged(Output, number, newLabel, oldLabel);
 
             m_pendingOutputLabel.append(number);
         }
