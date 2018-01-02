@@ -25,6 +25,8 @@ VideoHubServer::VideoHubServer(VideoHubServer::VideoHubDeviceType deviceType, co
     for (int i = 0; i < m_inputCount; i++) {
         m_inputLabels.replace(i, QString("Input %1").arg(i + 1).toLatin1());
     }
+
+    m_routingHandler_p = this;
 }
 
 QString VideoHubServer::getMacAddress()
@@ -281,6 +283,20 @@ void VideoHubServer::onClientData()
     }
 }
 
+void VideoHubServer::setRoutingHandler(VideoHubServerRoutingHandler* handler_p)
+{
+    m_routingHandler_p = (handler_p == NULL)
+            ? this
+            : handler_p;
+}
+
+bool VideoHubServer::routingChangeRequest(int output, int input)
+{
+    setRouting(output, input);
+
+    return true;
+}
+
 void VideoHubServer::processRequestResult(QTcpSocket* client, VideoHubServer::ProcessStatus result)
 {
     if (result == PS_Error) {
@@ -387,7 +403,9 @@ VideoHubServer::ProcessStatus VideoHubServer::processMessage(QList<QByteArray> &
             int input  = line.right(line.length() - index - 1).trimmed().toInt();
 
             if (isValidOutput(output) && isValidInput(input)) {
-                setRouting(output, input);
+                bool routingSuccess = m_routingHandler_p->routingChangeRequest(output, input);
+                if (!routingSuccess)
+                    return PS_Error;
             } else {
                 return PS_Error;
             }

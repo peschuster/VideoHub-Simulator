@@ -7,9 +7,11 @@
 #include <QtNetwork/QTcpServer>
 #include "qzeroconf.h"
 
+#include "videohubserverroutinghandler.h"
+
 #define VIDEOHUB_PORT   9990
 
-class VideoHubServer : public QObject
+class VideoHubServer : public QObject, protected VideoHubServerRoutingHandler
 {
     Q_OBJECT
 public:
@@ -73,6 +75,8 @@ private:
     QList<int> m_pendingOutputLabel;
     QList<int> m_pendingRouting;
     QList<int> m_pendingOutputLocks;
+
+    VideoHubServerRoutingHandler* m_routingHandler_p;
 public:
     explicit VideoHubServer(
             VideoHubDeviceType deviceType,
@@ -98,6 +102,8 @@ public:
     void setRouting(int output, int input);
     void setLock(int output, bool value);
 
+    void setRoutingHandler(VideoHubServerRoutingHandler* handler_p);
+
     void publishChanges();
 
     inline bool isValidInput(int number);
@@ -115,6 +121,7 @@ protected:
     void send(QTcpSocket* client, QString &header, QList<QString> &data);
     QString getMacAddress();
     QString getName(VideoHubDeviceType deviceType);
+    virtual bool routingChangeRequest(int output, int input);
 signals:
     void nameChanged(QString &newName, QString &oldName);
     void routingChanged(int output, int newInput, int oldInput);
